@@ -1,14 +1,16 @@
 # ULTRA Algorithmic Trading Platform - Runtime Dependencies
-# Install: pip install -r requirements.txt
+# Pinned to the exact versions verified by the full test suite on CI
+# (py3.11/3.12, Docker python:3.12-slim). Upgrade deliberately: bump a pin,
+# run the suite, then commit.
 
 # Core
-pandas>=1.5.0
-numpy>=1.23.0
-websockets>=11.0
+pandas==3.0.5
+numpy==2.4.6
+websockets==16.1.1
 
 # Dashboard
-streamlit>=1.28.0
-plotly>=5.15.0
+streamlit==1.60.0
+plotly==6.9.0
 
 # Monitoring
-psutil>=5.9.0
+psutil==7.2.2

@@ -12,8 +12,10 @@ playbook.
 | `deploy/ultra.service` | Linux systemd unit (auto-restart + hardening) |
 | `deploy/start.sh` | Linux/macOS auto-restart supervisor |
 | `deploy/start.ps1` | Windows auto-restart supervisor |
-| `deploy/healthcheck.ps1` | Health probe (process + fresh DB writes) |
-| `deploy/backup.ps1` | Daily DB + log backup with pruning |
+| `deploy/healthcheck.sh` | Linux/macOS health probe (process + fresh DB writes); also the Docker HEALTHCHECK |
+| `deploy/healthcheck.ps1` | Windows health probe (process + fresh DB writes) |
+| `deploy/backup.sh` | Linux/macOS daily DB + log backup with pruning |
+| `deploy/backup.ps1` | Windows daily DB + log backup with pruning |
 | `Dockerfile` / `docker-compose.yml` | Containerized deployment (recommended) |
 | `src/dashboard/app.py` | Streamlit dashboard (port 8501) |
 | `VERSION` | Version of the platform (single source of truth) |
@@ -35,12 +37,16 @@ cp .env.example .env      # then edit BROKER/TRADING_MODE/DERIV_API_TOKEN
 
 ```bash
 docker compose up -d --build            # builds and starts in paper mode
+docker compose ps                        # Status column: healthy / unhealthy
 docker compose logs -f ultra            # follow logs
 docker compose down                     # stop (graceful SIGTERM)
 ```
 
 - Runtime state is kept in `./data`, `./logs`, `./backups` (mounted volumes).
 - Secrets are read from `.env` (`env_file`) — **never baked into the image**.
+- The container self-reports health (`deploy/healthcheck.sh`: PID alive + DB
+  written within 5 min). `docker compose ps` shows `healthy`; Docker restarts
+  an unhealthy/stopped container via `restart: unless-stopped`.
 - Override mode/broker without touching files:
 
 ```bash
@@ -94,7 +100,9 @@ monitor.
 - **Dashboard:** `streamlit run src/dashboard/app.py` (separate process, port 8501).
 - **Heartbeat:** the orchestrator logs a heartbeat every 30s (ticks/candles/
   signals/trades) and a `data/bot.pid` file is written on startup for probes.
-- **Health gate (bot):** `deploy/healthcheck.ps1` checks process + DB freshness.
+- **Health gate (bot):** `deploy/healthcheck.ps1` (Windows) /
+  `deploy/healthcheck.sh` (Linux/macOS, and the Docker HEALTHCHECK) check
+  process + DB freshness; exit `0` = healthy.
 - **Alerts:** set `ALERT_EMAIL` / `WEBHOOK_URL` in `.env` (used by the
   monitoring layer).
 
@@ -103,7 +111,16 @@ monitor.
 - Windows: schedule `deploy/backup.ps1` daily (Task Scheduler). It snapshots
   the SQLite DB (WAL-safe copy) + logs into a dated zip and prunes old ones
   (`-KeepDays 14`).
-- Linux: add a cron line or systemd timer calling an equivalent DB `VACUUM INTO`.
+- Linux/macOS: `deploy/backup.sh` does the same into a dated `.tar.gz` with
+  `-mtime` pruning. Cron example (runs daily at 02:30 UTC):
+
+```cron
+30 2 * * * cd /opt/ultra && ./deploy/backup.sh 14 backups >> logs/backup.log 2>&1
+```
+
+- A systemd timer is the cleaner alternative to cron; both are equivalent for
+  this job. The Docker image ships `deploy/backup.sh` too, so you can run it
+  from a one-off container against the mounted `./data` volume.
 
 ## Upgrades
 
@@ -123,6 +140,40 @@ sudo systemctl restart ultra            # or: docker compose up -d --build
 - Run the bot as an unprivileged user (Docker does this by default).
 - The bot reads market data 24/7 on Binance; if the host is far from Binance
   (SSL handshake timeouts), use a VPS in a Binance-friendly region.
+
+## Target production architecture (roadmap)
+
+Direction for a 24/7 VPS deployment. The recommended flow: develop on Windows
+→ CI on GitHub Actions → same Docker images on an Ubuntu VPS.
+
+```
+Internet → Ubuntu 24.04 VPS → Docker Compose
+                                  ├── ultra (bot + Streamlit dashboard)   [done]
+                                  ├── PostgreSQL (trades/analytics)       [planned]
+                                  ├── Redis (cache/queues)                [planned]
+                                  └── monitoring (Prometheus/Grafana)     [planned]
+Nginx reverse proxy + HTTPS (optional)  →  dashboard.ultra.example        [planned]
+```
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Docker + Compose (bot, volumes, log rotation, HEALTHCHECK, restart policy) | ✅ done | See Option 1 |
+| CI (GitHub Actions: tests on 3.11/3.12 + image build) | ✅ done | `.github/workflows/ci.yml` |
+| Backups + pruning (Windows & Linux scripts) | ✅ done | `deploy/backup.{ps1,sh}` |
+| Health checks + restart policies (systemd, supervisors, container) | ✅ done | `deploy/healthcheck.{ps1,sh}` |
+| VPS deployment | 🟡 next | Needs a VPS with Docker Engine |
+| PostgreSQL | 🟡 planned | `DatabaseConfig.postgres_*` exists but `DatabaseManager` is SQLite-only; wiring needs a Postgres host to test against |
+| Redis | 🟡 planned | Not wired; no cache/queue layer yet |
+| Nginx + HTTPS | 🟡 planned | Fronts the Streamlit dashboard (8501) |
+| Prometheus/Grafana | 🟡 planned | Container health + bot metrics endpoints don't exist yet |
+
+VPS sizing for one bot: **2 vCPUs / 4 GB RAM / 40–60 GB SSD / Ubuntu 24.04**;
+scale to 4–8 vCPU / 8–16 GB for multi-broker or backtests.
+
+Phases: local (SQLite, paper) → Docker (same image, still SQLite paper) →
+VPS (Docker + backup/health/restart) → scale-up (PostgreSQL, Redis, Nginx,
+monitoring). SQLite remains the correct store for a single-instance bot;
+PostgreSQL matters when multiple instances/analytics workloads appear.
 
 ## Troubleshooting
 

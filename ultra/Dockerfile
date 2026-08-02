@@ -11,7 +11,8 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# System deps (curl only needed if you extend the healthcheck)
+# curl is used by operators for ad-hoc debugging inside the container
+# (the container HEALTHCHECK itself is self-contained deploy/healthcheck.sh).
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -19,12 +20,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# App code (src, config, main, docs)
+# App code (src, config, main, docs) + ops tooling (healthcheck/backup/supervisors)
 COPY src ./src
 COPY config ./config
 COPY main.py .
 COPY VERSION .
 COPY BLUEPRINT_CHECKLIST.md ./
+COPY deploy ./deploy
 
 # Runtime state lives in volumes; never bake secrets into the image
 VOLUME ["/app/data", "/app/logs", "/app/backups"]

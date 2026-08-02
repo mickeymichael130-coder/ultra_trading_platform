@@ -164,7 +164,9 @@ def _deploy_artifacts():
         os.path.join(ROOT, "deploy", "start.sh"),
         os.path.join(ROOT, "deploy", "start.ps1"),
         os.path.join(ROOT, "deploy", "healthcheck.ps1"),
+        os.path.join(ROOT, "deploy", "healthcheck.sh"),
         os.path.join(ROOT, "deploy", "backup.ps1"),
+        os.path.join(ROOT, "deploy", "backup.sh"),
         os.path.join(repo_root, ".github", "workflows", "ci.yml"),
     ]
     missing = [os.path.relpath(p, repo_root) for p in required if not os.path.isfile(p)]
