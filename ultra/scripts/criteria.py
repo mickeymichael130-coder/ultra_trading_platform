@@ -205,6 +205,57 @@ def _no_secrets_tracked():
                      else f"WARN: {env_rel} untracked but not ignored")
 
 
+# Values that are obviously placeholders/examples, never real secrets.
+_PLACEHOLDERS = ("<your_", "<api", "<token", "your_api_token", "changeme",
+                 "example", "xxx", "test", "dummy", "fake", "redacted")
+
+
+def _looks_like_secret(value: str) -> bool:
+    """High-signal heuristic: a non-placeholder secret value."""
+    value = value.strip().strip('"').strip("'")
+    if len(value) < 16:
+        return False
+    low = value.lower()
+    return not any(marker in low for marker in _PLACEHOLDERS)
+
+
+def _no_secrets_in_tracked():
+    repo_root = os.path.dirname(ROOT)
+    files = subprocess.run(["git", "ls-files", "-z"], cwd=repo_root,
+                           capture_output=True, text=True).stdout.split("\0")
+    issues = []
+    patterns = [
+        ("private-key", re.compile(r"BEGIN (RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY")),
+        ("removed-marker", re.compile(r"\*\*\*REMOVED\*\*\*")),
+        ("secret-assignment",
+         re.compile(r"(?i)(api[_-]?key|secret|password|access[_-]?token|client[_-]?secret|(?:api[_-]?)?token)"
+                    r"\s*[=:]\s*['\"]?([^'\"<>\s]+)")),
+        ("auth-bearer", re.compile(r"(?i)authorization\s*:\s*bearer\s+\S{20,}")),
+    ]
+    for rel in files:
+        if not rel or re.search(r"\.(png|jpg|jpeg|gif|ico|db|db-wal|db-shm|zip|tar|gz|pyc|so|dll|exe)$", rel):
+            continue
+        path = os.path.join(repo_root, rel)
+        try:
+            with open(path, encoding="utf-8", errors="ignore") as fh:
+                for lineno, line in enumerate(fh, 1):
+                    for name, pat in patterns:
+                        m = pat.search(line)
+                        if not m:
+                            continue
+                        if name == "secret-assignment":
+                            if _looks_like_secret(m.group(2)):
+                                issues.append(f"{rel}:{lineno} [{name}]")
+                                break
+                        elif not line.lstrip().startswith("#"):
+                            issues.append(f"{rel}:{lineno} [{name}]")
+                            break
+        except OSError:
+            continue
+    return (not issues), ("OK (no secret markers/assignments in tracked files)"
+                          if not issues else "potential secrets: " + "; ".join(issues[:6]))
+
+
 CRITERIA = [
     {"id": "C1", "phase": 2, "title": "Adapters subclass BaseBroker",
      "check": _subclasses_basebroker},
@@ -228,4 +279,6 @@ CRITERIA = [
      "check": _runbook_present},
     {"id": "C11", "phase": 17, "title": "No secrets tracked (.env untracked + ignored)",
      "check": _no_secrets_tracked},
+    {"id": "C12", "phase": 17, "title": "No secrets in tracked files (keys, token assignments, markers)",
+     "check": _no_secrets_in_tracked},
 ]

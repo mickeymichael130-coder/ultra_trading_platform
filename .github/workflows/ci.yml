@@ -40,3 +40,16 @@ jobs:
         run: docker build -t ultra-trading-platform:ci .
       - name: "Smoke: image reports its version"
         run: docker run --rm ultra-trading-platform:ci python -c "from src.utils.version import get_version; print('ULTRA', get_version())"
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks scan (full history; fails the build on any finding)
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo \
+            ghcr.io/gitleaks/gitleaks:v8.24.0 \
+            detect --source /repo --config /repo/.gitleaks.toml \
+            --redact --no-banner --log-level warn

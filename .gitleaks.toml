@@ -1,0 +1,14 @@
+title = "ULTRA Algorithmic Trading Platform gitleaks config"
+
+# Keep the full default rule set and add ULTRA-specific allowlist entries.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Generator/bytecode artifacts committed by the pre-rewrite history (not secrets)"
+paths = [
+    # Virtualenvs (committed once before the history cleanup) - never scanned content.
+    '''(^|/)venv/''',
+    # Compiled Python bytecode.
+    '''(^|/)__pycache__/''',
+]

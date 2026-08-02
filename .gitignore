@@ -20,6 +20,7 @@ venv311/
 
 # Logs
 *.log
+logs/
 
 # SQLite
 *.db
