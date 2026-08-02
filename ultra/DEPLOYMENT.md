@@ -130,6 +130,7 @@ sudo systemctl restart ultra            # or: docker compose up -d --build
 |---------|-----|
 | `Failed to connect` at startup | Check `BROKER` + network egress (Binance REST is flaky from some regions) |
 | `DERIV_API_TOKEN required` | Only for `--mode live`; set the token or use paper |
+| Deriv `InvalidToken` at auth | Token rejected by the server: confirm it is from `deriv.com/account/api-token`, matches the app id in `DERIV_APP_ID` (demo app ids like `1089` reject real-money tokens), and is not expired. The 2026 Deriv platform may require a registered app (developers.deriv.com) — otherwise run paper on Binance (`--broker binance`), which needs no token |
 | Stale DB healthcheck | Bot not receiving ticks → check broker connectivity / symbols |
 | Dashboard empty | Run the bot first so it can seed the DB, then start Streamlit |
 | Container exits in a loop | `docker compose logs ultra`; confirm `.env` is present |
