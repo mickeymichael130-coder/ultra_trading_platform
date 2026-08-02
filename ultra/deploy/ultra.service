@@ -1,0 +1,31 @@
+[Unit]
+Description=ULTRA Algorithmic Trading Platform
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Auto-restart on crash or abnormal exit
+Restart=always
+RestartSec=5
+# Backoff if the bot crashes repeatedly
+StartLimitIntervalSec=60
+StartLimitBurst=10
+
+WorkingDirectory=/opt/ultra
+Environment=DERIV_APP_ID=1089
+Environment=TRADING_MODE=paper
+# Environment=***REMOVED***   # required for --mode live
+Environment=PYTHONUNBUFFERED=1
+Environment=LOG_LEVEL=INFO
+ExecStart=/opt/ultra/venv/bin/python main.py --mode paper
+ExecStop=/bin/kill -INT $MAINPID
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target
