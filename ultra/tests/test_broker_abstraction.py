@@ -12,7 +12,7 @@ from src.broker import DerivClient, BinanceClient
 from src.core.domain import (
     ConnectionState, MarketTick, Candle, Tick,
     Signal, SignalDirection, SignalStrength,
-    OrderStatus, ExecutionMode, Trade, Position, Account, ExitReason,
+    OrderStatus, ExecutionMode, Order, Trade, Position, Account, ExitReason,
     TradeSignal, TradeExecution,
 )
 from src.strategies.ema_crossover import TradeSignal as StgTradeSignal
@@ -97,7 +97,8 @@ def test_basebroker_contract_methods_exist_on_clients():
     for cls in (DerivClient, BinanceClient):
         for method in ("connect", "disconnect", "subscribe_ticks",
                        "subscribe_candles", "fetch_history", "unsubscribe_all",
-                       "buy_contract", "sell_contract", "get_proposal", "ping"):
+                       "buy_contract", "sell_contract", "get_proposal", "ping",
+                       "get_balance"):
             assert callable(getattr(cls, method)), f"{cls.__name__}.{method}"
         # is_connected / account_balance are properties
         assert isinstance(getattr(cls, "is_connected"), property)
@@ -162,3 +163,45 @@ def test_account_model():
     assert acc.broker == "binance"
     assert acc.available_balance is None
     assert acc.equity is None
+
+
+# === Order model + get_balance (iteration 11) ===
+
+
+def test_order_defaults_and_to_dict():
+    o = Order(id="ORD_EXEC_1", symbol="frxEURUSD", side="BUY", qty=0.1)
+    assert o.status == OrderStatus.PENDING
+    assert o.contract_id is None
+    d = o.to_dict()
+    assert d["status"] == "pending"
+    assert d["symbol"] == "frxEURUSD"
+
+    filled = Order(id="ORD_X", symbol="BTCUSDT", side="SELL", qty=1.0,
+                   status=OrderStatus.FILLED, fill_price=100.0)
+    assert filled.to_dict()["fill_price"] == 100.0
+
+
+def test_trade_order_field_default_none():
+    sig = Signal(symbol="frxEURUSD", direction=SignalDirection.BUY,
+                 strength=SignalStrength.MODERATE, confidence=0.7, timestamp=1)
+    t = Trade(id="EXEC_1", signal=sig, status=OrderStatus.PENDING,
+              mode=ExecutionMode.PAPER)
+    assert t.order is None
+
+
+@pytest.mark.asyncio
+async def test_deriv_get_balance_returns_account_when_authorized():
+    c = DerivClient(app_id="1089", api_token="")
+    assert await c.get_balance() is None  # not authorized yet
+    c._account_info = {"balance": 1999.5, "currency": "USD"}
+    acc = await c.get_balance()
+    assert isinstance(acc, Account)
+    assert acc.broker == "deriv"
+    assert acc.balance == 1999.5
+    assert acc.currency == "USD"
+
+
+@pytest.mark.asyncio
+async def test_binance_get_balance_returns_none_in_public_mode():
+    c = BinanceClient(app_id="0", api_token="")
+    assert await c.get_balance() is None

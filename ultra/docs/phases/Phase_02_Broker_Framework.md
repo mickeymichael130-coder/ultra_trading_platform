@@ -137,7 +137,7 @@ sequenceDiagram
 - [x] `BaseBroker` ABC exists (`src/broker/base_broker.py`); both clients subclass it.
 - [x] `MarketTick`/`Candle` moved to broker-neutral `src/core/domain.py` (back-compat `Tick` alias kept).
 - [x] `broker_factory.py` maps `broker_type` → adapter; orchestrator uses it.
-- [x] `Signal`/`Trade`/`Position`/`Account` migrated to `src/core/domain.py` with back-compat aliases (`TradeSignal`, `TradeExecution`); `Order` is the remaining broker-native concept.
+- [x] `Signal`/`Trade`/`Position`/`Account`/`Order` migrated to `src/core/domain.py` with back-compat aliases (`TradeSignal`, `TradeExecution`); engine emits a filled `Order` per fill; `get_balance()` returns an `Account` snapshot.
 
 ## Future Improvements
 

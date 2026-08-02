@@ -11,7 +11,7 @@ broker-neutral core domain models (MarketTick, Candle).
 from abc import ABC, abstractmethod
 from typing import Callable, Dict, List, Optional
 
-from ..core.domain import Candle, MarketTick
+from ..core.domain import Account, Candle, MarketTick
 
 
 class BaseBroker(ABC):
@@ -91,3 +91,7 @@ class BaseBroker(ABC):
     @abstractmethod
     def account_balance(self) -> Optional[float]:
         """Current account balance, or None when unavailable (e.g. public data)."""
+
+    @abstractmethod
+    async def get_balance(self) -> Optional[Account]:
+        """Fetch a broker-neutral Account snapshot, or None when unavailable."""

@@ -22,6 +22,8 @@ venv311/
 
 # SQLite
 *.db
+*.db-shm
+*.db-wal
 *.sqlite3
 
 # Cache

@@ -13,6 +13,7 @@ from ..core.domain import (
     SignalDirection,
     OrderStatus,
     ExecutionMode,
+    Order,
     Trade as TradeExecution,
 )
 from ..risk.manager import RiskResult
@@ -111,6 +112,7 @@ class ExecutionEngine:
             execution.entry_price = signal.entry_price
             execution.fill_price = signal.entry_price  # No slippage in paper
             execution.filled_at = datetime.utcnow()
+            execution.order = self._build_order(execution)
 
             self.logger.info(
                 f"📄 PAPER FILL: {signal.symbol} | "
@@ -169,6 +171,7 @@ class ExecutionEngine:
                     execution.entry_price = signal.entry_price
                     execution.fill_price = signal.entry_price
                     execution.filled_at = datetime.utcnow()
+                    execution.order = self._build_order(execution)
 
                     self.logger.info(
                         f"✅ LIVE FILL: {signal.symbol} | "
@@ -273,3 +276,20 @@ class ExecutionEngine:
             if t.id == exec_id:
                 return t
         return None
+
+    def _build_order(self, execution: TradeExecution) -> Order:
+        """Build the broker-neutral Order record backing a filled trade."""
+        signal = execution.signal
+        return Order(
+            id=f"ORD_{execution.id}",
+            symbol=signal.symbol,
+            side=signal.direction.value,
+            qty=signal.position_size or 0.0,
+            price=signal.entry_price,
+            status=OrderStatus.FILLED,
+            contract_id=execution.contract_id,
+            submitted_at=execution.submitted_at,
+            filled_at=execution.filled_at,
+            fill_price=execution.fill_price,
+            error_message=execution.error_message,
+        )

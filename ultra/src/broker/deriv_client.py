@@ -9,7 +9,7 @@ import time
 import websockets
 from typing import Callable, Dict, Optional, Any, List
 
-from ..core.domain import ConnectionState, MarketTick as Tick, Candle
+from ..core.domain import Account, ConnectionState, MarketTick as Tick, Candle
 from ..utils.logger import get_logger
 from .base_broker import BaseBroker
 
@@ -608,3 +608,13 @@ class DerivClient(BaseBroker):
         if self._account_info:
             return self._account_info.get("balance")
         return None
+
+    async def get_balance(self) -> Optional[Account]:
+        if not self._account_info:
+            return None
+        return Account(
+            broker="deriv",
+            balance=self._account_info.get("balance", 0.0),
+            currency=self._account_info.get("currency", "USD"),
+            equity=self._account_info.get("equity"),
+        )

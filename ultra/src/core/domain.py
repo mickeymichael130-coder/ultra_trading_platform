@@ -150,6 +150,38 @@ class ExecutionMode(Enum):
 
 
 @dataclass
+class Order:
+    """Broker-neutral order record. Paper/live fills produce an Order with
+    status `filled`; submitted orders start as `pending`."""
+    id: str
+    symbol: str
+    side: str  # "BUY" | "SELL" (matches SignalDirection.value)
+    qty: float
+    price: Optional[float] = None  # limit price, if any
+    status: OrderStatus = OrderStatus.PENDING
+    contract_id: Optional[str] = None
+    submitted_at: Optional[datetime] = None
+    filled_at: Optional[datetime] = None
+    fill_price: Optional[float] = None
+    error_message: Optional[str] = None
+
+    def to_dict(self) -> Dict:
+        return {
+            "id": self.id,
+            "symbol": self.symbol,
+            "side": self.side,
+            "qty": self.qty,
+            "price": self.price,
+            "status": self.status.value,
+            "contract_id": self.contract_id,
+            "submitted_at": str(self.submitted_at) if self.submitted_at else None,
+            "filled_at": str(self.filled_at) if self.filled_at else None,
+            "fill_price": self.fill_price,
+            "error": self.error_message,
+        }
+
+
+@dataclass
 class Trade:
     """Broker-neutral record of a trade execution (was TradeExecution)."""
     id: str
@@ -174,6 +206,9 @@ class Trade:
     # Error tracking
     error_message: Optional[str] = None
     retry_count: int = 0
+
+    # Broker-neutral order backing this trade (paper fills set it to `filled`)
+    order: Optional[Order] = None
 
     def to_dict(self) -> Dict:
         signal = self.signal

@@ -32,14 +32,14 @@ Verdict legend: ✅ pass | 🟡 partial | ❌ fail
 |----------|--------|-------|
 | 1. Function | ✅ | Structure, config, logging present and verified |
 | 2. Blueprint | ✅ | Project skeleton, venv, config, logging all present |
-| 3. Quality | ✅ | Full pytest suite now exists (181 tests) |
+| 3. Quality | ✅ | Full pytest suite now exists (185 tests) |
 
 ### Phase 2 — Broker Layer
 | Criteria | Status | Notes |
 |----------|--------|-------|
 | 1. Function | ✅ | Paper mode works without API token (public one-shot history); **streaming/subscribe requires `DERIV_API_TOKEN`**. **Alternative broker: Binance (`--broker binance`) provides token-free trade/kline streaming + REST backfill** |
 | 2. Blueprint | ✅ | Connect/auth/subscribe/reconnect + real resubscribe tracking; both `DerivClient` and `BinanceClient` implement the same interface (orchestrator swaps via `broker_cls`/`broker_type`) |
-| 3. Quality | ✅ | 23 Deriv protocol tests + 14 BinanceClient protocol tests + 17 broker-abstraction tests (BaseBroker ABC, factory, domain models incl. Signal/Trade/Position/Account); live validation found & fixed 3 real bugs in Deriv client (subscriptions lost on mid-request disconnect, `subscribe:1` fails unauthenticated → token-free `fetch_history()`, `_send_request` dict mutation); BinanceClient live smoke-tested against real API (ticks flow, 500-candle history, clean disconnect) |
+| 3. Quality | ✅ | 23 Deriv protocol tests + 14 BinanceClient protocol tests + 21 broker-abstraction tests (BaseBroker ABC, factory, domain models incl. Signal/Trade/Position/Account/Order + get_balance); live validation found & fixed 3 real bugs in Deriv client (subscriptions lost on mid-request disconnect, `subscribe:1` fails unauthenticated → token-free `fetch_history()`, `_send_request` dict mutation); BinanceClient live smoke-tested against real API (ticks flow, 500-candle history, clean disconnect) |
 
 ### Phase 3 — Market Data Engine
 | Criteria | Status | Notes |
@@ -164,11 +164,12 @@ Verdict legend: ✅ pass | 🟡 partial | ❌ fail
 | 10 | 2026-08-02 | **Remaining domain models migrated to core** (ADR-002): `Signal` (was `TradeSignal` in strategies), `Trade` (was `TradeExecution` in execution engine), `Position` + `ExitReason` (were in position manager) and new `Account` all live in `src/core/domain.py`; `OrderStatus`/`ExecutionMode`/`SignalDirection`/`SignalStrength` enums moved too; back-compat aliases (`TradeSignal = Signal`, `TradeExecution = Trade`) re-exported by `ema_crossover.py` / `execution/engine.py` so every existing import path still resolves; 6 new domain tests (alias identity, `Trade.to_dict` DB fields, `Position` defaults, `Account`) | Suite grew 175 → 181 tests, all passing; core domain is now pandas-free (`timestamp: Any`) so domain imports stay lightweight; only broker-native `Order` remains un-modeled |
 
 ---
+| 11 | 2026-08-02 | **Order model + Account on the broker interface** (ADR-002): broker-neutral Order in src/core/domain.py; execution engine emits a filled Order per paper/live fill (attached as Trade.order); new BaseBroker.get_balance() -> Optional[Account] abstract method; Deriv builds Account from uthorize, Binance public mode returns None; scripts/criteria.py + scripts/iterate.py = the criteria-driven iteration loop (run criteria + tests + docs checks, --full/--phase/--only/--log); suite grew 181 -> 185 tests, all passing | |
 
 ## Open items for next iteration
 
-- **Model `Order` in core domain** (ADR-002): the last broker-native concept — paper fills should produce an `Order` (status `filled`); wires into the `Trade` lifecycle. Spec: `docs/02_Domain_Model.md`
-- **Broker `Account` snapshot on the interface**: adapters build `Account` (already in core) and return it from `account_balance`/`get_balance()`; engine risk reads a live balance from any broker (Deriv needs valid tokens; Binance needs an API key for account endpoints — paper mode can synthesize one)
+- **Iteration loop is now the workflow**: `python scripts/iterate.py` runs the criteria (ADR-001/002/003 + tests + docs) and suggests the next open item; `--full` runs the whole suite, `--log "msg"` records the iteration. Add new criteria in `scripts/criteria.py`.
+- **Wire live balance into risk via `get_balance()`**: the risk manager currently sizes positions from its internal `_current_balance`; have the orchestrator refresh it from `broker.get_balance()` when an `Account` snapshot is available (Deriv needs valid tokens; Binance needs an API key — paper mode can synthesize).
 - **Fill out remaining phase docs** from the `docs/phases/` template (Phase 3, 4, 5 …) as each area is touched next
 - **Run paper mode on Binance for a full session**: `python main.py --mode paper --broker binance` streams BTCUSDT/ETHUSDT tick data 24/7 with no token. Note: this machine's connectivity to `api.binance.com` is slow/flaky (SSL handshake timeouts at startup); the client recovers automatically, but consider a VPS in a Binance-friendly region for production
 - **Live Deriv streaming**: still requires a real Deriv API token in `.env` (Deriv rejects `subscribe` streams unauthenticated with `InvalidSymbol`). Both supplied tokens were rejected server-side (`InvalidToken`/`InvalidAppID`) on every endpoint tested; the 2026 Deriv platform needs a registered app (developers.deriv.com) + PAT + OTP-authenticated WebSocket URL. Deferred until going live

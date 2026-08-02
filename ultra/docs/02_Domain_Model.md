@@ -95,8 +95,8 @@ class Signal:
 | `Signal` | `src/core/domain.py` | ✅ **Done** — was `TradeSignal` (strategies); now `Signal` in core, `TradeSignal = Signal` alias re-exported by `src/strategies/ema_crossover.py`; `SignalEnhancer`, risk and backtest operate on it. |
 | `Trade` | `src/core/domain.py` | ✅ **Done** — was `TradeExecution` (execution engine); now `Trade` in core, alias re-exported by `src/execution/engine.py`; `to_dict()` keeps all DB/dashboard fields. |
 | `Position` | `src/core/domain.py` | ✅ **Done** — was in `position_manager/manager.py`; now core model (with `ExitReason`), manager owns the state machine; alias re-exported. |
-| `Account` | new (target) | ✅ **Model added** to core (`broker`, `balance`, `currency`, `available_balance`, `equity`, `updated_at`). Adapters will build it in the next phase (`get_balance()` on the broker interface). |
-| `Order` | Broker-native today (Deriv `buy` contract; Binance order API not used in paper) | New model; paper fills produce an `Order` with status `filled`. |
+| `Account` | `src/core/domain.py` | ✅ **Done** — model in core (`broker`, `balance`, `currency`, `available_balance`, `equity`, `updated_at`); new `BaseBroker.get_balance()` returns an `Account` snapshot (Deriv builds it from `authorize`; Binance public mode returns `None`). |
+| `Order` | `src/core/domain.py` | ✅ **Done** — broker-neutral `Order` in core; the execution engine emits a filled `Order` for every paper/live fill (attached as `Trade.order`). |
 
 ## Why This Matters
 

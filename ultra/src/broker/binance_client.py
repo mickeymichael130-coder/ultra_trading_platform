@@ -13,7 +13,12 @@ from typing import Callable, Dict, Optional, Any, List
 
 import websockets
 
-from ..core.domain import ConnectionState, MarketTick as Tick, Candle
+from ..core.domain import (
+    Account,
+    ConnectionState,
+    MarketTick as Tick,
+    Candle,
+)
 from ..utils.logger import get_logger
 from ..utils.pips import get_pip_size
 from .base_broker import BaseBroker
@@ -445,4 +450,8 @@ class BinanceClient(BaseBroker):
 
     @property
     def account_balance(self) -> Optional[float]:
+        return None
+
+    async def get_balance(self) -> Optional[Account]:
+        # Public market-data mode has no account context (no API key).
         return None

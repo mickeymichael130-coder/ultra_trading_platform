@@ -51,6 +51,10 @@ async def test_paper_execution_fills():
     assert execution.mode == ExecutionMode.PAPER
     assert execution.fill_price == execution.signal.entry_price
     assert execution.id in engine.get_active_trades()
+    assert execution.order is not None
+    assert execution.order.status == OrderStatus.FILLED
+    assert execution.order.symbol == "frxEURUSD"
+    assert execution.order.fill_price == execution.fill_price
 
 
 @pytest.mark.asyncio
