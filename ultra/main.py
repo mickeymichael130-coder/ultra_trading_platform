@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from src.orchestrator import TradingOrchestrator
 from src.utils.logger import setup_logger
+from src.utils.version import get_version
 
 
 def parse_args(argv=None):
@@ -148,12 +149,14 @@ async def main():
 
     logger = setup_logger(name="ultra", log_level=args.log_level)
 
+    logger.info(f"ULTRA v{get_version()} | mode={args.mode} | broker={args.broker}")
+
     app_id = os.getenv("DERIV_APP_ID", "1089")
     api_token = os.getenv("DERIV_API_TOKEN", "")
 
     if args.mode == "live" and not api_token:
         logger.error("ULTRA: DERIV_API_TOKEN required for live trading")
-        logger.error("Set it: export ***REMOVED***
+        logger.error("Set it: export DERIV_API_TOKEN=<your_api_token>")
         sys.exit(1)
 
     if args.mode == "backtest":

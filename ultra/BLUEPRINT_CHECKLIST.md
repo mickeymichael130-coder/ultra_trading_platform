@@ -32,7 +32,7 @@ Verdict legend: ✅ pass | 🟡 partial | ❌ fail
 |----------|--------|-------|
 | 1. Function | ✅ | Structure, config, logging present and verified |
 | 2. Blueprint | ✅ | Project skeleton, venv, config, logging all present |
-| 3. Quality | ✅ | Full pytest suite now exists (185 tests) |
+| 3. Quality | ✅ | Full pytest suite now exists (189 tests) |
 
 ### Phase 2 — Broker Layer
 | Criteria | Status | Notes |
@@ -165,13 +165,14 @@ Verdict legend: ✅ pass | 🟡 partial | ❌ fail
 
 ---
 | 11 | 2026-08-02 | **Order model + Account on the broker interface** (ADR-002): broker-neutral Order in src/core/domain.py; execution engine emits a filled Order per paper/live fill (attached as Trade.order); new BaseBroker.get_balance() -> Optional[Account] abstract method; Deriv builds Account from uthorize, Binance public mode returns None; scripts/criteria.py + scripts/iterate.py = the criteria-driven iteration loop (run criteria + tests + docs checks, --full/--phase/--only/--log); suite grew 181 -> 185 tests, all passing | |
+| 12 | 2026-08-02 | **Deployment-ready product** (Phase 17 + ops): runtime/dev deps split (requirements*.txt); Dockerfile + docker-compose.yml + .dockerignore (non-root, volumes, log rotation, secrets via env); VERSION + src/utils/version.py (startup logs version); .github/workflows/ci.yml (full suite on push/PR, py 3.11/3.12); DEPLOYMENT.md operator runbook; docs/phases/Phase_17_Deployment.md spec; phases index made accurate; start.sh encoding/mode bugs fixed; orchestrator live-balance sync via BaseBroker.get_balance() (_sync_balance_once, 60s loop); loop grown to 11 criteria incl. deploy artifacts + no-secrets (C9-C11); suite grew 185 -> 189 tests, all passing; live Binance paper smoke: 501 ticks, 0 errors | |
 
 ## Open items for next iteration
 
-- **Iteration loop is now the workflow**: `python scripts/iterate.py` runs the criteria (ADR-001/002/003 + tests + docs) and suggests the next open item; `--full` runs the whole suite, `--log "msg"` records the iteration. Add new criteria in `scripts/criteria.py`.
-- **Wire live balance into risk via `get_balance()`**: the risk manager currently sizes positions from its internal `_current_balance`; have the orchestrator refresh it from `broker.get_balance()` when an `Account` snapshot is available (Deriv needs valid tokens; Binance needs an API key — paper mode can synthesize).
-- **Fill out remaining phase docs** from the `docs/phases/` template (Phase 3, 4, 5 …) as each area is touched next
-- **Run paper mode on Binance for a full session**: `python main.py --mode paper --broker binance` streams BTCUSDT/ETHUSDT tick data 24/7 with no token. Note: this machine's connectivity to `api.binance.com` is slow/flaky (SSL handshake timeouts at startup); the client recovers automatically, but consider a VPS in a Binance-friendly region for production
+- **Iteration loop is the workflow**: `python scripts/iterate.py` runs 11 criteria (ADR compliance, tests, docs, deploy artifacts, no-secrets) and suggests the next open item; `--full` runs the whole suite, `--log "msg"` records the iteration. Add new criteria in `scripts/criteria.py`.
+- **Fill out remaining phase docs** (Phase 03–16) from the `docs/phases/` template as each area is touched; index in `docs/phases/README.md` is now accurate.
+- **Validate on a real host**: `docker compose up -d --build` on a Linux VPS (Binance-friendly region), run paper for a full session, wire `deploy/healthcheck.ps1` (or a Linux port) to an uptime monitor, and schedule `deploy/backup.ps1` (or a cron/timer equivalent) daily.
+- **Optional production upgrades**: Postgres backend for analytics (config present, not wired), Prometheus/health HTTP endpoint + Grafana, pinned patch versions in requirements for reproducible images.
 - **Live Deriv streaming**: still requires a real Deriv API token in `.env` (Deriv rejects `subscribe` streams unauthenticated with `InvalidSymbol`). Both supplied tokens were rejected server-side (`InvalidToken`/`InvalidAppID`) on every endpoint tested; the 2026 Deriv platform needs a registered app (developers.deriv.com) + PAT + OTP-authenticated WebSocket URL. Deferred until going live
 - **Phase 15**: with a token in place, run `python main.py --mode live` to collect a full live streaming session (ticks → 1m→15m candles → signals → live fills)
 - **Portfolio Manager** (Phase 09 / `docs/01_System_Architecture.md`): add only when multi-broker is active

@@ -23,7 +23,7 @@ CONSECUTIVE_FAILURES=0
 MAX_CONSECUTIVE=10
 
 while true; do
-    log "Launching bot (paper) ..."
+    log "Launching bot (mode=$MODE) ..."
     "$PYTHON" "$BOT_DIR/main.py" --mode "$MODE" >> "$SUPERVISOR_LOG" 2>&1
     EXIT_CODE=$?
 
@@ -37,7 +37,7 @@ while true; do
     log "Bot exited unexpectedly (code=$EXIT_CODE). Attempt $CONSECUTIVE_FAILURES."
 
     if [ "$CONSECUTIVE_FAILURES" -ge "$MAX_CONSECUTIVE" ]; then
-        log "Too many consecutive failures. Giving up — notify an operator."
+        log "Too many consecutive failures. Giving up - notify an operator."
         exit 1
     fi
 

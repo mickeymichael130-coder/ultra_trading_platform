@@ -127,6 +127,25 @@ def orchestrator(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_balance_sync_updates_risk_manager(tmp_path):
+    from src.core.domain import Account
+
+    class BalanceBroker(StubBroker):
+        async def get_balance(self):
+            return Account(broker="stub", balance=2500.0, currency="USD")
+
+    orch = TradingOrchestrator(
+        symbols=["frxEURUSD"],
+        mode="paper",
+        db_path=str(tmp_path / "sync.db"),
+        broker_cls=BalanceBroker,
+    )
+    await orch._sync_balance_once()
+    assert orch.risk_manager._current_balance == 2500.0
+    assert orch.risk_manager._peak_balance >= 2500.0
+
+
+@pytest.mark.asyncio
 async def test_full_pipeline_end_to_end(orchestrator):
     closes = _make_closes()
     _feed_history(orchestrator, "frxEURUSD", closes, start_epoch_ms=1_750_000_000_000)

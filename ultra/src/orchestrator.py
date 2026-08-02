@@ -433,12 +433,16 @@ class TradingOrchestrator:
             # Start database persistence loop
             persist_task = asyncio.create_task(self._persistence_loop())
 
+            # Start account balance sync loop
+            balance_task = asyncio.create_task(self._balance_sync_loop())
+
             # Wait for shutdown signal
             await self._shutdown_event.wait()
 
             # Cancel background tasks
             health_task.cancel()
             persist_task.cancel()
+            balance_task.cancel()
 
         except Exception as e:
             self.logger.error(f"Orchestrator error: {e}")
@@ -535,6 +539,33 @@ class TradingOrchestrator:
 
             except Exception as e:
                 self.logger.error(f"Persistence error: {e}")
+
+    async def _balance_sync_loop(self):
+        """Periodically refresh the risk manager's balance from a broker
+        Account snapshot (BaseBroker.get_balance). Falls back silently to the
+        internal paper balance when the broker reports none."""
+        while self._running:
+            await asyncio.sleep(60)
+            try:
+                await self._sync_balance_once()
+            except Exception as e:
+                self.logger.debug(f"Balance sync unavailable: {e}")
+
+    async def _sync_balance_once(self):
+        """Single balance refresh from the broker's Account snapshot."""
+        account = await self.broker.get_balance()
+        if account and account.balance is not None:
+            old = self.risk_manager._current_balance
+            if account.balance != old:
+                self.risk_manager._current_balance = account.balance
+                self.risk_manager._peak_balance = max(
+                    self.risk_manager._peak_balance, account.balance
+                )
+                self.logger.info(
+                    f"💰 Balance synced from broker: {old:.2f} → "
+                    f"{account.balance:.2f} {account.currency}"
+                )
+            self.db.save_balance(account.balance)
 
     # === Status & Control ===
 

@@ -1,0 +1,25 @@
+services:
+  ultra:
+    build: .
+    image: ultra-trading-platform:latest
+    container_name: ultra
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Brokers: deriv (forex, token for live) or binance (crypto, public paper)
+      BROKER: ${BROKER:-binance}
+      TRADING_MODE: ${TRADING_MODE:-paper}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # Default to a token-less paper setup; set DERIV_API_TOKEN for live.
+    ports:
+      - "${DASHBOARD_PORT:-8501}:8501"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./backups:/app/backups
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

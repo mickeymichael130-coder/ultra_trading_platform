@@ -15,7 +15,7 @@ StartLimitBurst=10
 WorkingDirectory=/opt/ultra
 Environment=DERIV_APP_ID=1089
 Environment=TRADING_MODE=paper
-# Environment=***REMOVED***   # required for --mode live
+# Environment=DERIV_API_TOKEN=<your_api_token>   # required for --mode live
 Environment=PYTHONUNBUFFERED=1
 Environment=LOG_LEVEL=INFO
 ExecStart=/opt/ultra/venv/bin/python main.py --mode paper

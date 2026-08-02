@@ -1,7 +1,24 @@
 # 🚀 ULTRA Algorithmic Trading Platform
 
-Professional algorithmic trading platform for Deriv forex markets.
-Built with production-grade architecture: isolated layers, state persistence, and hard risk constraints.
+Broker-neutral algorithmic trading platform (Deriv forex + Binance crypto).
+Built with production-grade architecture: broker abstraction, isolated layers,
+state persistence, hard risk constraints, and docs-first governance.
+
+## Deployment & Operations
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the operator runbook — Docker
+(recommended), systemd, Windows supervisor, healthchecks, backups and upgrades.
+The platform spec lives in [docs/](docs/). Version: `VERSION`.
+
+## Development Loop
+
+Iterate against the blueprint (docs-first):
+
+```bash
+python scripts/iterate.py            # criteria C1–C11 + fast tests
+python scripts/iterate.py --full     # + full test suite
+python scripts/iterate.py --log "…"  # record an iteration in the checklist
+```
 
 ## Architecture
 
@@ -69,7 +86,7 @@ streamlit run src/dashboard/app.py
 ### 4. Live Trading (⚠️ Real Money)
 
 ```bash
-export ***REMOVED***
+export DERIV_API_TOKEN=<your_api_token>
 export TRADING_MODE=live
 
 python main.py --mode live

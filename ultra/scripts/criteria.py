@@ -152,6 +152,44 @@ def _checklist_current():
     return False, f"today ({today}) or open-items section missing"
 
 
+def _deploy_artifacts():
+    repo_root = os.path.dirname(ROOT)
+    required = [
+        os.path.join(ROOT, "Dockerfile"),
+        os.path.join(ROOT, "docker-compose.yml"),
+        os.path.join(ROOT, ".dockerignore"),
+        os.path.join(ROOT, "VERSION"),
+        os.path.join(ROOT, "requirements-dev.txt"),
+        os.path.join(ROOT, "deploy", "ultra.service"),
+        os.path.join(ROOT, "deploy", "start.sh"),
+        os.path.join(ROOT, "deploy", "start.ps1"),
+        os.path.join(ROOT, "deploy", "healthcheck.ps1"),
+        os.path.join(ROOT, "deploy", "backup.ps1"),
+        os.path.join(repo_root, ".github", "workflows", "ci.yml"),
+    ]
+    missing = [os.path.relpath(p, repo_root) for p in required if not os.path.isfile(p)]
+    return (not missing), ("OK" if not missing else "missing: " + ", ".join(missing))
+
+
+def _runbook_present():
+    p = os.path.join(ROOT, "DEPLOYMENT.md")
+    ok = os.path.isfile(p)
+    return ok, ("OK" if ok else "DEPLOYMENT.md missing")
+
+
+def _no_secrets_tracked():
+    repo_root = os.path.dirname(ROOT)
+    env_rel = os.path.relpath(os.path.join(ROOT, ".env"), repo_root)
+    tracked = subprocess.run(["git", "ls-files", env_rel], cwd=repo_root,
+                             capture_output=True, text=True).stdout.strip()
+    if tracked:
+        return False, f"{env_rel} is tracked by git (secret risk)"
+    ignored = subprocess.run(["git", "check-ignore", env_rel], cwd=repo_root,
+                             capture_output=True).returncode == 0
+    return ignored, ("OK (.env untracked + ignored)" if ignored
+                     else f"WARN: {env_rel} untracked but not ignored")
+
+
 CRITERIA = [
     {"id": "C1", "phase": 2, "title": "Adapters subclass BaseBroker",
      "check": _subclasses_basebroker},
@@ -169,4 +207,10 @@ CRITERIA = [
      "check": _docs_manual_present},
     {"id": "C8", "phase": 4, "title": "Checklist updated for current iteration",
      "check": _checklist_current},
+    {"id": "C9", "phase": 17, "title": "Deploy artifacts present (Docker, VERSION, deploy/, CI)",
+     "check": _deploy_artifacts},
+    {"id": "C10", "phase": 17, "title": "Operator runbook present (DEPLOYMENT.md)",
+     "check": _runbook_present},
+    {"id": "C11", "phase": 17, "title": "No secrets tracked (.env untracked + ignored)",
+     "check": _no_secrets_tracked},
 ]
