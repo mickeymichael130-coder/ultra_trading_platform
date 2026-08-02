@@ -168,7 +168,20 @@ def _deploy_artifacts():
         os.path.join(repo_root, ".github", "workflows", "ci.yml"),
     ]
     missing = [os.path.relpath(p, repo_root) for p in required if not os.path.isfile(p)]
-    return (not missing), ("OK" if not missing else "missing: " + ", ".join(missing))
+    if missing:
+        return False, "missing: " + ", ".join(missing)
+    import yaml
+    bad = []
+    for f in (os.path.join(ROOT, "docker-compose.yml"),
+              os.path.join(repo_root, ".github", "workflows", "ci.yml")):
+        try:
+            with open(f, encoding="utf-8") as fh:
+                yaml.safe_load(fh)
+        except Exception as exc:
+            bad.append(f"{os.path.relpath(f, repo_root)}: {exc}")
+    if bad:
+        return False, "invalid YAML: " + "; ".join(bad)
+    return True, "OK (present + YAML parses)"
 
 
 def _runbook_present():

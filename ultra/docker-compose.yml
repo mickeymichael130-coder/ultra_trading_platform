@@ -5,7 +5,8 @@ services:
     container_name: ultra
     restart: unless-stopped
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       # Brokers: deriv (forex, token for live) or binance (crypto, public paper)
       BROKER: ${BROKER:-binance}

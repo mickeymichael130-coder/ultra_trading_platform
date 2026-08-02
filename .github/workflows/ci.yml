@@ -26,3 +26,17 @@ jobs:
           pip install -r requirements-dev.txt
       - name: Full test suite
         run: python -m pytest -q -p no:cacheprovider
+
+  docker-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ultra
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate compose file (no .env present)
+        run: docker compose config -q
+      - name: Build image
+        run: docker build -t ultra-trading-platform:ci .
+      - name: "Smoke: image reports its version"
+        run: docker run --rm ultra-trading-platform:ci python -c "from src.utils.version import get_version; print('ULTRA', get_version())"

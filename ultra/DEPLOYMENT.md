@@ -22,7 +22,10 @@ playbook.
 
 - Python **3.11+** (tested on 3.12 / 3.14)
 - `pip install -r requirements.txt` (runtime) or `requirements-dev.txt` (adds tests)
-- An `.env` file (copy `.env.example`); **no token is needed for paper mode**
+- An `.env` file (copy `.env.example`); **no token is needed for paper mode**.
+  The compose file treats `.env` as optional (`required: false`, needs Docker
+  Compose >= 2.24) so a fresh checkout with no `.env` still starts in token-less
+  paper mode.
 
 ```
 cp .env.example .env      # then edit BROKER/TRADING_MODE/DERIV_API_TOKEN
