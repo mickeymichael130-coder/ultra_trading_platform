@@ -6,8 +6,10 @@ klines normalization against fakes — no network required.
 """
 import asyncio
 import json
+import time
 
 import pytest
+import websockets
 
 from src.broker.binance_client import BinanceClient, _KLINE_INTERVAL
 from src.broker.deriv_client import ConnectionState, Tick, Candle
@@ -261,3 +263,122 @@ def test_is_connected_property(client):
     assert client.is_connected is True
     client.state = ConnectionState.DISCONNECTED
     assert client.is_connected is False
+
+
+# === Reconnect + stale watchdog ===
+
+
+class _DroppingWS(FakeWebSocket):
+    """A socket whose recv() immediately reports ConnectionClosed."""
+
+    async def recv(self):
+        raise websockets.exceptions.ConnectionClosed(None, None)
+
+
+def test_connection_closed_clears_socket_and_reconnects(client, monkeypatch):
+    client.reconnect_delay_base = 0.0
+    client.reconnect_attempts = 1
+    client._subscriptions = ["btcusdt@trade"]
+    connects = []
+
+    async def fake_connect(url, **kwargs):
+        ws = _DroppingWS(url)
+        client.websocket = ws
+        connects.append(url)
+        return ws
+
+    monkeypatch.setattr("websockets.connect", fake_connect)
+
+    # Pre-existing dead socket — exactly what a dropped stream leaves behind.
+    dead = _DroppingWS("wss://old")
+    client.websocket = dead
+    client._current_stream_url = "wss://old"
+
+    async def scenario():
+        await client._receive_loop()
+        assert client.websocket is not dead  # dead socket was replaced
+        assert len(connects) == 1  # exactly one reconnect attempt
+        assert client.state == ConnectionState.AUTHENTICATED
+        if client._receive_task is not None:
+            client._receive_task.cancel()
+
+    asyncio.run(scenario())
+
+
+def test_tick_updates_last_tick_time(client):
+    asyncio.run(client._process_message({
+        "stream": "btcusdt@trade",
+        "data": {
+            "e": "trade", "E": 1700000000123, "s": "BTCUSDT",
+            "t": 12345, "p": "50000.25", "q": "0.01", "T": 1700000000123,
+            "m": True, "M": True,
+        },
+    }))
+    assert client._last_tick_time > 0
+
+
+def test_heartbeat_forces_reconnect_on_stale_stream(client, monkeypatch):
+    client.reconnect_delay_base = 0.0
+    client.stale_timeout = 60.0
+    client.heartbeat_interval = 0.01
+    client._subscriptions = ["btcusdt@trade"]
+    connects = []
+
+    async def fake_connect(url, **kwargs):
+        ws = FakeWebSocket(url)
+        client.websocket = ws
+        connects.append(url)
+        return ws
+
+    monkeypatch.setattr("websockets.connect", fake_connect)
+
+    async def scenario():
+        await client._ensure_streams()
+        client._last_tick_time = time.time() - 120.0  # way past stale_timeout
+        task = asyncio.create_task(client._heartbeat_loop())
+        for _ in range(100):
+            if len(connects) >= 2:
+                break
+            await asyncio.sleep(0.01)
+        client._running = False
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        assert len(connects) >= 2  # initial + forced reconnect
+
+    asyncio.run(scenario())
+
+
+def test_heartbeat_reconnects_when_socket_is_none(client, monkeypatch):
+    client.reconnect_delay_base = 0.0
+    client.heartbeat_interval = 0.01
+    client._subscriptions = ["btcusdt@trade"]
+    client._last_tick_time = 0.0  # no data seen yet
+    client.websocket = None
+    connects = []
+
+    async def fake_connect(url, **kwargs):
+        ws = FakeWebSocket(url)
+        client.websocket = ws
+        connects.append(url)
+        return ws
+
+    monkeypatch.setattr("websockets.connect", fake_connect)
+
+    async def scenario():
+        task = asyncio.create_task(client._heartbeat_loop())
+        for _ in range(100):
+            if len(connects) >= 1:
+                break
+            await asyncio.sleep(0.01)
+        client._running = False
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        assert len(connects) >= 1
+
+    asyncio.run(scenario())

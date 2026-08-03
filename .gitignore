@@ -22,6 +22,9 @@ venv311/
 *.log
 logs/
 
+# Runtime data (bot DBs, PID files)
+data/
+
 # SQLite
 *.db
 *.db-shm

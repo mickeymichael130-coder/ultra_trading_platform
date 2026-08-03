@@ -55,6 +55,7 @@ class BinanceClient(BaseBroker):
         reconnect_delay_base: float = 1.0,
         reconnect_delay_max: float = 60.0,
         heartbeat_interval: int = 30,
+        stale_timeout: float = 90.0,
         rest_base: str = _REST_BASE,
         stream_base: str = _STREAM_BASE,
         request_timeout: float = 10.0
@@ -66,6 +67,7 @@ class BinanceClient(BaseBroker):
         self.reconnect_delay_base = reconnect_delay_base
         self.reconnect_delay_max = reconnect_delay_max
         self.heartbeat_interval = heartbeat_interval
+        self.stale_timeout = stale_timeout
         self.rest_base = rest_base.rstrip("/")
         self.stream_base = stream_base.rstrip("/")
         self.request_timeout = request_timeout
@@ -88,6 +90,7 @@ class BinanceClient(BaseBroker):
 
         # Connection metadata
         self._last_pong_time: float = 0
+        self._last_tick_time: float = 0.0
         self._current_stream_url: Optional[str] = None
 
         # Active subscriptions: Binance stream names (e.g. "btcusdt@trade"),
@@ -353,6 +356,8 @@ class BinanceClient(BaseBroker):
                 await self._process_message(data)
             except websockets.exceptions.ConnectionClosed:
                 self.logger.warning("WebSocket connection closed")
+                self.websocket = None
+                self._current_stream_url = None
                 if self._running:
                     await self._reconnect()
                 break
@@ -366,6 +371,7 @@ class BinanceClient(BaseBroker):
         event = payload.get("e")
 
         if event == "trade":
+            self._last_tick_time = time.time()
             symbol = payload["s"]
             tick = Tick(
                 symbol=symbol,
@@ -382,6 +388,7 @@ class BinanceClient(BaseBroker):
                     self.logger.error(f"Tick handler error: {e}")
 
         elif event == "kline":
+            self._last_tick_time = time.time()
             k = payload["k"]
             candle = Candle(
                 symbol=k["s"],
@@ -420,14 +427,33 @@ class BinanceClient(BaseBroker):
     # === Heartbeat / Liveness ===
 
     async def _heartbeat_loop(self):
-        """Keep-alive: verify the stream socket is alive. websockets handles
-        protocol-level ping/pong, so this just guards the receive loop and
-        never races an in-flight refresh/reconnect."""
+        """Keep-alive: guard the receive loop and watch for a dead or stale
+        stream. websockets handles protocol-level ping/pong, so a socket that
+        stops delivering data without raising ConnectionClosed (half-open) is
+        detected here by staleness and torn down + reconnected. Never races an
+        in-flight refresh/reconnect."""
         while self._running:
             await asyncio.sleep(self.heartbeat_interval)
             refresh_pending = self._refresh_task is not None and not self._refresh_task.done()
+
+            stale = (
+                self._last_tick_time > 0
+                and self.websocket is not None
+                and not self._reconnecting
+                and not refresh_pending
+                and (time.time() - self._last_tick_time) > self.stale_timeout
+            )
+            if stale:
+                age = time.time() - self._last_tick_time
+                self.logger.warning(
+                    f"Stale stream: no data for {age:.0f}s; forcing reconnect"
+                )
+                await self._close_ws()
+                await self._reconnect()
+                continue
+
             if (self.websocket is None and self._running and self._subscriptions
-                    and not refresh_pending):
+                    and not refresh_pending and not self._reconnecting):
                 self.logger.warning("Stream socket is dead; reconnecting")
                 await self._reconnect()
 
