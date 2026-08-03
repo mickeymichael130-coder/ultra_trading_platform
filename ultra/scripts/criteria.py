@@ -256,6 +256,33 @@ def _no_secrets_in_tracked():
                           if not issues else "potential secrets: " + "; ".join(issues[:6]))
 
 
+def _dashboard_perf_gate():
+    """Static performance regression guard for the dashboard:
+    - no deprecated `use_container_width` (must use `width="stretch"`)
+    - chart builders live in charts.py and use st.cache_data (cached reads)
+    Kept cheap (no re-running the suite) so the loop stays fast."""
+    dash_dir = os.path.join(SRC, "dashboard")
+    if not os.path.isdir(dash_dir):
+        return False, "src/dashboard missing"
+    problems = []
+    charts_have_cache = False
+    for f in sorted(os.listdir(dash_dir)):
+        if not f.endswith(".py"):
+            continue
+        path = os.path.join(dash_dir, f)
+        with open(path, "r", encoding="utf-8", errors="ignore") as fh:
+            src = fh.read()
+        if "use_container_width" in src:
+            problems.append(f"{f}: uses deprecated use_container_width (use width='stretch')")
+        if f == "charts.py":
+            charts_have_cache = "cache_data" in src
+    if not charts_have_cache:
+        problems.append("charts.py: no st.cache_data caching on chart builders")
+    if problems:
+        return False, "; ".join(problems)
+    return True, "OK (no deprecated API; cached chart builders present)"
+
+
 CRITERIA = [
     {"id": "C1", "phase": 2, "title": "Adapters subclass BaseBroker",
      "check": _subclasses_basebroker},
@@ -281,4 +308,6 @@ CRITERIA = [
      "check": _no_secrets_tracked},
     {"id": "C12", "phase": 17, "title": "No secrets in tracked files (keys, token assignments, markers)",
      "check": _no_secrets_in_tracked},
+    {"id": "C13", "phase": 17, "title": "Dashboard perf gate (no deprecated API, cached charts)",
+     "check": _dashboard_perf_gate},
 ]
