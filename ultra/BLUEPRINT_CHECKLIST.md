@@ -25,6 +25,46 @@ Verdict legend: ✅ pass | 🟡 partial | ❌ fail
 
 ---
 
+## Development Doctrine (operating model)
+
+Motto: **Design → Build → Test → Review → Improve → Freeze → Integrate**.
+
+This project is built module-by-module through an iterative loop, **not** as a
+linear "phase 1 → done". Only the current module re-loops; completed modules are
+frozen. The mechanics live in `scripts/iterate.py` (13 criteria = the review
+gates); this section is the doctrine those gates encode.
+
+### The loop (per module)
+
+1. **Define requirements** → 2. **Architecture design** → 3. **Prototype** →
+4. **Code** → 5. **Test** → 6. **Review** → meets goals?
+   - Yes → **Freeze module** (DoD below) and integrate.
+   - No → loop **only that module** (improve → retest → review).
+
+### Review gates (map to loop criteria C1–C13)
+
+| Gate | Question | Enforced by |
+|------|----------|-------------|
+| 1. Architecture | Scalable? Multi-broker ready? Responsibilities separated? | C1–C4 (BaseBroker contract, core domain, factory, aliases) |
+| 2. Code Quality | Clean code, type hints, logging, error handling, tests? | C5/C6 (fast + full suite) |
+| 3. Functional | Works? Edge cases handled? Failures recoverable? | C5/C6 test coverage + live smoke runs |
+| 4. Performance | Fast enough, stable long-term? | C13 (dashboard perf) + measured warm reruns |
+| 5. Production Readiness | Docker-ready, configurable, secrets safe, logging, monitoring? | C9–C12 (deploy artifacts, runbook, no-secrets) |
+
+### Definition of Done (a module is done only when ALL hold)
+
+- [ ] Architecture reviewed against `01_System_Architecture.md`.
+- [ ] Code implemented behind the phase doc (`docs/phases/`).
+- [ ] Unit tests pass (full suite green).
+- [ ] Integration tests pass (orchestrator E2E, paper pipeline).
+- [ ] Documentation written (phase doc + checklist row).
+- [ ] Logging and error handling added.
+- [ ] Performance reviewed (warm reruns / latency budget).
+- [ ] Security considerations addressed where applicable (no secrets tracked).
+- [ ] Approved for release (review gate sign-off).
+
+---
+
 ## Phase Status
 
 ### Phase 1 — Foundation
